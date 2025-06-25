@@ -57,8 +57,8 @@ RegisterNetEvent("flakeyCore:setJob", function(jobName, grade)
     local data = fullId and playerDataCache[fullId]
 
     if data and jobList[jobName] and jobList[jobName].grades[grade] then
-        data.job = jobName
-        data.grade = grade
+        playerDataCache[fullId].job = jobName
+        playerDataCache[fullId].grade = grade
 
         local label = jobList[jobName].label .. " - " .. jobList[jobName].grades[grade].name
         TriggerClientEvent("flakeyCore:jobChanged", src, jobName, label)
@@ -86,8 +86,8 @@ RegisterCommand("setjob", function(source, args)
     local data = fullId and playerDataCache[fullId]
 
     if data then
-        data.job = jobName
-        data.grade = grade
+        playerDataCache[fullId].job = jobName
+        playerDataCache[fullId].grade = grade
         local label = jobList[jobName].label .. " - " .. jobList[jobName].grades[grade].name
         TriggerClientEvent("flakeyCore:jobChanged", targetId, jobName, label)
         print("Set job for player", targetId, "to", label)
@@ -119,7 +119,7 @@ CreateThread(function()
             if data then
                 local _, _, _, gradeData = GetPlayerJob(fullId)
                 if gradeData and gradeData.paycheck > 0 then
-                    data.bank = data.bank + gradeData.paycheck
+                    playerDataCache[fullId].bank = data.bank + gradeData.paycheck
                     TriggerClientEvent("flakeyCore:updateMoneyUI", playerId, data.cash, data.bank)
                     TriggerClientEvent("chat:addMessage", playerId, {
                         args = { "Paycheck", "You received $" .. gradeData.paycheck .. " as a " .. gradeData.name }
