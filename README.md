@@ -33,19 +33,20 @@ Welcome to **FlakeyCore**, a lightweight and dependency-free FiveM framework des
 You’ll need to create a `flakey_players` table with fields like:
 
 ```sql
-CREATE TABLE IF NOT EXISTS flakey_players (
-  identifier VARCHAR(100) PRIMARY KEY,
-  cash INT DEFAULT 1000,
-  bank INT DEFAULT 5000,
-  position LONGTEXT,
-  ped LONGTEXT,
-  job VARCHAR(50) DEFAULT 'unemployed',
-  grade INT DEFAULT 0,
-  firstname VARCHAR(50),
-  lastname VARCHAR(50),
-  dob VARCHAR(20),
-  gender VARCHAR(10)
-);
+CREATE TABLE IF NOT EXISTS `flakey_players` (
+  `identifier` varchar(64) NOT NULL,
+  `cash` int DEFAULT '1000',
+  `bank` int DEFAULT '5000',
+  `position` text,
+  `ped` longtext,
+  `name` varchar(64) DEFAULT 'John Doe',
+  `dob` varchar(32) DEFAULT '2000-01-01',
+  `gender` varchar(16) DEFAULT 'male',
+  `height` int DEFAULT '180',
+  `job` varchar(50) DEFAULT NULL,
+  `grade` int DEFAULT NULL,
+  PRIMARY KEY (`identifier`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 ⸻
 
