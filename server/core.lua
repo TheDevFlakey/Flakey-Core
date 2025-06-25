@@ -132,3 +132,30 @@ AddEventHandler("playerDropped", function()
     activeCharacter[src] = nil
     playerDataCache[charId] = nil
 end)
+
+AddEventHandler("onResourceStop", function(resourceName)
+    if resourceName == GetCurrentResourceName() then
+        for src, charId in pairs(activeCharacter) do
+            print(charId)
+            local data = playerDataCache[charId]
+            if not data then return end
+
+            local pos = data.position or { x = -270.0, y = -957.0, z = 31.2, heading = 250.0 }
+
+            exports.oxmysql:update_async([[UPDATE flakey_players SET
+                cash = ?, bank = ?, position = ?, ped = ?,
+                name = ?, dob = ?, gender = ?, height = ?, job = ?, grade = ?
+                WHERE identifier = ?]], {
+                data.cash, data.bank, json.encode(pos), json.encode(data.ped),
+                data.name, data.dob, data.gender, data.height, data.job, data.grade, charId
+            })
+
+            setKvp(charId, "health", data.health)
+            setKvp(charId, "hunger", data.hunger)
+            setKvp(charId, "thirst", data.thirst)
+
+            activeCharacter[src] = nil
+            playerDataCache[charId] = nil
+        end
+    end
+end)
