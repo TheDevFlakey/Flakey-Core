@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS flakey_players (
 	•	🔜 Admin tools
 	•	🔜 Character selector UI
 	•	🔜 Whitelisted Ped Selector
-	•	🔜 Checks for whitelisted Job's
+	•	🔜 Checks for whitelisted Jobs
 	•	🔜 Player owned vehicle system
 	•	🔜 Anti cheat
 	•	🔜 Blips on map
