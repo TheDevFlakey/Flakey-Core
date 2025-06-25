@@ -46,3 +46,33 @@ CREATE TABLE IF NOT EXISTS flakey_players (
   dob VARCHAR(20),
   gender VARCHAR(10)
 );
+
+⸻
+
+🛠️ Planned Features
+	•	🔜 Character creator UI
+	•	🔜 Admin tools
+	•	🔜 Character selector UI
+	•	🔜 Whitelisted Ped Selector
+	•	🔜 Checks for whitelisted Job's
+	•	🔜 Player owned vehicle system
+	•	🔜 Anti cheat
+	•	🔜 Blips on map
+	•	🔜 Easy to use exports/events
+
+⸻
+
+❤️ Contributing
+
+Pull requests, suggestions, and forks are welcome.
+Make it yours. Break it. Rebuild it better.
+
+⸻
+
+📜 License
+
+MIT — Free to use, modify, and distribute with credit.
+
+⸻
+
+Made with 🧠 and by Flakey❄️
