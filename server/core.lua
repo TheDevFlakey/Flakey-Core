@@ -133,6 +133,89 @@ AddEventHandler("playerDropped", function()
     playerDataCache[charId] = nil
 end)
 
+RegisterNetEvent("flakeyCore:createCharacter", function(charData)
+    local src = source
+    local baseId = GetPlayerIdentifier(src, 0)
+
+    -- Find next available slot
+    local result = exports.oxmysql:query_async(
+        'SELECT identifier FROM flakey_players WHERE identifier LIKE ?', 
+        { baseId .. "|%" }
+    )
+
+    local takenSlots = {}
+    for _, row in ipairs(result) do
+        local _, slot = row.identifier:match("([^|]+)|(%d+)")
+        if slot then takenSlots[tonumber(slot)] = true end
+    end
+
+    local nextSlot = 1
+    while takenSlots[nextSlot] do
+        nextSlot = nextSlot + 1
+    end
+
+    local charId = ("%s|%d"):format(baseId, nextSlot)
+
+    local defaultPos = json.encode({ x = -270.0, y = -957.0, z = 31.2, heading = 250.0 })
+    local defaultPed = json.encode({ model = `mp_m_freemode_01`, components = {}, props = {} })
+
+    exports.oxmysql:insert_async([[INSERT INTO flakey_players (
+        identifier, cash, bank, position, ped, name, dob, gender, height, job, grade
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+        charId,
+        1000, -- cash
+        5000, -- bank
+        defaultPos,
+        defaultPed,
+        charData.name,
+        charData.dob,
+        charData.gender,
+        tonumber(charData.height) or 180,
+        "unemployed",
+        0
+    })
+
+    -- Save needs to KVP
+    setKvp(charId, "health", 200)
+    setKvp(charId, "hunger", 100)
+    setKvp(charId, "thirst", 100)
+
+    -- return success to client (React)
+    TriggerClientEvent("flakey_multichar:characterCreated", src, true, nextSlot)
+end)
+
+RegisterNetEvent("flakeyCore:playerJoined", function()
+    local src = source
+    local baseId = GetPlayerIdentifier(src, 0)
+
+    -- Fetch all characters for this player
+    local result = exports.oxmysql:query_async('SELECT * FROM flakey_players WHERE identifier LIKE ?', { baseId .. "|%" })
+
+    if #result == 0 then
+        -- No characters found, create a default one
+        TriggerClientEvent("flakey_multichar:showCreateCharacter", src)
+    else
+        -- Send characters to client
+        TriggerClientEvent("flakey_multichar:loadCharacters", src, result)
+    end
+end)
+
+RegisterNetEvent("flakeyCore:deleteCharacter", function(slotId)
+    local src = source
+    local baseId = GetPlayerIdentifier(src, 0)
+    local charId = ("%s|%d"):format(baseId, slotId)
+
+    -- Delete character from database
+    exports.oxmysql:execute_async('DELETE FROM flakey_players WHERE identifier = ?', { charId })
+
+    -- Remove from cache
+    playerDataCache[charId] = nil
+    activeCharacter[src] = nil
+
+    -- Notify client
+    TriggerClientEvent("flakey_multichar:characterDeleted", src, slotId)
+end)
+
 AddEventHandler("onResourceStop", function(resourceName)
     if resourceName == GetCurrentResourceName() then
         for src, charId in pairs(activeCharacter) do
