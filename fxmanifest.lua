@@ -10,3 +10,4 @@ server_script '@oxmysql/lib/MySQL.lua'
 
 server_script "server/**/*"
 client_script "client/**/*"
+client_script "stream/**/*"
