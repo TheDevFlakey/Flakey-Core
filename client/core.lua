@@ -23,6 +23,8 @@ RegisterNetEvent("flakeyCore:loadPlayer", function(data)
 
     playerData.hunger = data.hunger or 100
     playerData.thirst = data.thirst or 100
+    LocalPlayer.state:set("hunger", playerData.hunger, true)
+    LocalPlayer.state:set("thirst", playerData.thirst, true)    
 
     TriggerEvent("flakeyCore:updateMoneyUI", data.cash, data.bank)
 end)
