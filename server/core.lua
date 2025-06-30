@@ -1,6 +1,16 @@
 -- core_server.lua
+
+-- export the variable for other scripts
 playerDataCache = {} -- maps charId to character data
 activeCharacter = {}  -- maps player source to charId
+
+exports('playerDataCache', function()
+    return playerDataCache
+end)
+
+exports('activeCharacter', function()
+    return activeCharacter
+end)
 
 -- Utility function for KVP
 function getKvp(identifier, key, default)
