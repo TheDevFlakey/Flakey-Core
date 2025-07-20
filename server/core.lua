@@ -1,51 +1,54 @@
 -- core_server.lua
 
--- export the variable for other scripts
-playerDataCache = {} -- maps charId to character data
-activeCharacter = {}  -- maps player source to charId
+playerDataCache = {}  -- maps cid to character data
+activeCharacter = {}  -- maps player source to cid
+playerCidMap = {}     -- maps player source to cid (for quick lookup)
 
-exports('playerDataCache', function()
-    return playerDataCache
-end)
-
-exports('activeCharacter', function()
-    return activeCharacter
+exports('playerDataCache', function() return playerDataCache end)
+exports('activeCharacter', function() return activeCharacter end)
+exports("getSourceFromCID", function(cid)
+    for src, character in pairs(activeCharacter) do
+        if character == cid then
+            return src
+        end
+    end
+    return nil
 end)
 
 -- Utility function for KVP
-function getKvp(identifier, key, default)
-    local val = GetResourceKvpString(identifier .. ":" .. key)
+function getKvp(cid, key, default)
+    local val = GetResourceKvpString(cid .. ":" .. key)
     return val and json.decode(val) or default
 end
 
-function setKvp(identifier, key, data)
-    SetResourceKvp(identifier .. ":" .. key, json.encode(data))
+function setKvp(cid, key, data)
+    SetResourceKvp(cid .. ":" .. key, json.encode(data))
 end
 
--- Build character-specific identifier
-function getCharacterId(src, slot)
-    local base = GetPlayerIdentifier(src, 0)
-    return ("%s|%s"):format(base, slot)
+-- Generate next available character ID
+function generateId()
+    local query = [[
+        SELECT MIN(cid + 1) AS next_id
+        FROM flakey_players
+        WHERE cid >= 1000
+        AND NOT EXISTS (SELECT NULL FROM flakey_players u2 WHERE u2.cid = flakey_players.cid + 1)
+    ]]
+    return MySQL.scalar.await(query) or 1000
 end
 
--- Ensure player data exists in cache
-local function ensurePlayerData(identifier)
-    local result = exports.oxmysql:query_async('SELECT * FROM flakey_players WHERE identifier = ?', { identifier })
+-- Ensure player data exists
+local function ensurePlayerData(cid)
+    local result = exports.oxmysql:query_async('SELECT * FROM flakey_players WHERE cid = ?', { cid })
 
     if result[1] then
-        result[1].health = getKvp(identifier, "health", 200)
-        result[1].hunger = getKvp(identifier, "hunger", 100)
-        result[1].thirst = getKvp(identifier, "thirst", 100)
-        result[1].name = result[1].name or "John Doe"
-        result[1].dob = result[1].dob or "2000-01-01"
-        result[1].gender = result[1].gender or "male"
+        result[1].health = getKvp(cid, "health", 200)
+        result[1].hunger = getKvp(cid, "hunger", 100)
+        result[1].thirst = getKvp(cid, "thirst", 100)
         result[1].height = tonumber(result[1].height) or 180
-        result[1].job = result[1].job or "unemployed"
-        result[1].grade = tonumber(result[1].grade) or 0
         return result[1]
     else
         local defaultData = {
-            identifier = identifier,
+            cid = cid,
             cash = 1000,
             bank = 5000,
             position = json.encode({ x = -270.0, y = -957.0, z = 31.2, heading = 250.0 }),
@@ -61,32 +64,34 @@ local function ensurePlayerData(identifier)
             grade = 0
         }
 
-        exports.oxmysql:insert_async([[INSERT INTO flakey_players (identifier, cash, bank, position, ped, name, dob, gender, height, job, grade)
+        exports.oxmysql:insert_async([[INSERT INTO flakey_players 
+            (cid, cash, bank, position, ped, name, dob, gender, height, job, grade) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
-            identifier, defaultData.cash, defaultData.bank, defaultData.position,
+            cid, defaultData.cash, defaultData.bank, defaultData.position,
             defaultData.ped, defaultData.name, defaultData.dob, defaultData.gender,
             defaultData.height, defaultData.job, defaultData.grade
         })
 
-        setKvp(identifier, "health", defaultData.health)
-        setKvp(identifier, "hunger", defaultData.hunger)
-        setKvp(identifier, "thirst", defaultData.thirst)
+        setKvp(cid, "health", defaultData.health)
+        setKvp(cid, "hunger", defaultData.hunger)
+        setKvp(cid, "thirst", defaultData.thirst)
 
         return defaultData
     end
 end
 
--- Called when character is selected
-RegisterNetEvent("flakeyCore:selectCharacter", function(slot)
+-- Character selection
+RegisterNetEvent("flakeyCore:selectCharacter", function(cid)
     local src = source
-    local charId = getCharacterId(src, slot)
-    local data = ensurePlayerData(charId)
+    local data = ensurePlayerData(cid)
 
-    activeCharacter[src] = charId
-    playerDataCache[charId] = data
+    activeCharacter[src] = cid
+    playerCidMap[src] = cid
+    playerDataCache[cid] = data
 
     data.position = json.decode(data.position)
     data.ped = json.decode(data.ped)
+
     Player(src).state:set("health", data.health, true)
     Player(src).state:set("hunger", data.hunger, true)
 
@@ -95,36 +100,35 @@ RegisterNetEvent("flakeyCore:selectCharacter", function(slot)
     TriggerClientEvent("flakeyCore:playerLoaded", src)
 end)
 
--- Save player position
 RegisterNetEvent("flakeyCore:savePlayerPosition", function(pos)
     local src = source
-    local charId = activeCharacter[src]
-    if charId and playerDataCache[charId] then
-        playerDataCache[charId].position = pos
+    local cid = activeCharacter[src]
+    if cid and playerDataCache[cid] then
+        playerDataCache[cid].position = pos
     end
 end)
 
 RegisterNetEvent("flakeyCore:updateLastKnownPosition", function(pos)
     local src = source
-    local charId = activeCharacter[src]
-    if charId and playerDataCache[charId] then
-        playerDataCache[charId].position = pos
+    local cid = activeCharacter[src]
+    if cid and playerDataCache[cid] then
+        playerDataCache[cid].position = pos
     end
 end)
 
 RegisterNetEvent("flakeyCore:updateNeed", function(type, value)
     local src = source
-    local charId = activeCharacter[src]
-    if charId and playerDataCache[charId] then
-        playerDataCache[charId][type] = value
-        setKvp(charId, type, value)
+    local cid = activeCharacter[src]
+    if cid and playerDataCache[cid] then
+        playerDataCache[cid][type] = value
+        setKvp(cid, type, value)
     end
 end)
 
 AddEventHandler("playerDropped", function()
     local src = source
-    local charId = activeCharacter[src]
-    local data = charId and playerDataCache[charId]
+    local cid = activeCharacter[src]
+    local data = cid and playerDataCache[cid]
     if not data then return end
 
     local pos = data.position or { x = -270.0, y = -957.0, z = 31.2, heading = 250.0 }
@@ -132,51 +136,35 @@ AddEventHandler("playerDropped", function()
     exports.oxmysql:update_async([[UPDATE flakey_players SET
         cash = ?, bank = ?, position = ?, ped = ?,
         name = ?, dob = ?, gender = ?, height = ?, job = ?, grade = ?
-        WHERE identifier = ?]], {
+        WHERE cid = ?]], {
         data.cash, data.bank, json.encode(pos), json.encode(data.ped),
-        data.name, data.dob, data.gender, data.height, data.job, data.grade, charId
+        data.name, data.dob, data.gender, data.height, data.job, data.grade, cid
     })
 
-    setKvp(charId, "health", data.health)
-    setKvp(charId, "hunger", data.hunger)
-    setKvp(charId, "thirst", data.thirst)
+    setKvp(cid, "health", data.health)
+    setKvp(cid, "hunger", data.hunger)
+    setKvp(cid, "thirst", data.thirst)
 
     activeCharacter[src] = nil
-    playerDataCache[charId] = nil
+    playerCidMap[src] = nil
+    playerDataCache[cid] = nil
 end)
 
 RegisterNetEvent("flakeyCore:createCharacter", function(charData)
     local src = source
-    local baseId = GetPlayerIdentifier(src, 0)
-
-    -- Find next available slot
-    local result = exports.oxmysql:query_async(
-        'SELECT identifier FROM flakey_players WHERE identifier LIKE ?', 
-        { baseId .. "|%" }
-    )
-
-    local takenSlots = {}
-    for _, row in ipairs(result) do
-        local _, slot = row.identifier:match("([^|]+)|(%d+)")
-        if slot then takenSlots[tonumber(slot)] = true end
-    end
-
-    local nextSlot = 1
-    while takenSlots[nextSlot] do
-        nextSlot = nextSlot + 1
-    end
-
-    local charId = ("%s|%d"):format(baseId, nextSlot)
+    local cid = generateId()
+    local fivemId = GetPlayerIdentifier(src, 0)
 
     local defaultPos = json.encode({ x = -270.0, y = -957.0, z = 31.2, heading = 250.0 })
     local defaultPed = json.encode({ model = `mp_m_freemode_01`, components = {}, props = {} })
 
     exports.oxmysql:insert_async([[INSERT INTO flakey_players (
-        identifier, cash, bank, position, ped, name, dob, gender, height, job, grade
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
-        charId,
-        1000, -- cash
-        5000, -- bank
+        cid, fivem_id, cash, bank, position, ped, name, dob, gender, height, job, grade
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+        cid,
+        fivemId,
+        1000,
+        5000,
         defaultPos,
         defaultPed,
         charData.name,
@@ -187,67 +175,70 @@ RegisterNetEvent("flakeyCore:createCharacter", function(charData)
         0
     })
 
-    -- Save needs to KVP
-    setKvp(charId, "health", 200)
-    setKvp(charId, "hunger", 100)
-    setKvp(charId, "thirst", 100)
+    setKvp(cid, "health", 200)
+    setKvp(cid, "hunger", 100)
+    setKvp(cid, "thirst", 100)
 
-    -- return success to client (React)
-    TriggerClientEvent("flakey_multichar:characterCreated", src, true, nextSlot)
+    TriggerClientEvent("flakey_multichar:characterCreated", src, true, cid)
 end)
+
 
 RegisterNetEvent("flakeyCore:playerJoined", function()
     local src = source
-    local baseId = GetPlayerIdentifier(src, 0)
+    local fivemId = GetPlayerIdentifier(src, 0)
 
-    -- Fetch all characters for this player
-    local result = exports.oxmysql:query_async('SELECT * FROM flakey_players WHERE identifier LIKE ?', { baseId .. "|%" })
+    if not fivemId then
+        print("flakeyCore: No valid identifier found for player " .. src)
+        return
+    end
+
+    local result = exports.oxmysql:query_async(
+        'SELECT * FROM flakey_players WHERE fivem_id = ?', 
+        { fivemId }
+    )
 
     if #result == 0 then
-        -- No characters found, create a default one
         TriggerClientEvent("flakey_multichar:showCreateCharacter", src)
     else
-        -- Send characters to client
         TriggerClientEvent("flakey_multichar:loadCharacters", src, result)
     end
 end)
 
-RegisterNetEvent("flakeyCore:deleteCharacter", function(slotId)
+RegisterNetEvent("flakeyCore:deleteCharacter", function(cid)
     local src = source
-    local baseId = GetPlayerIdentifier(src, 0)
-    local charId = ("%s|%d"):format(baseId, slotId)
 
-    -- Delete character from database
-    exports.oxmysql:execute_async('DELETE FROM flakey_players WHERE identifier = ?', { charId })
+    exports.oxmysql:execute_async('DELETE FROM flakey_players WHERE cid = ?', { cid })
 
-    -- Remove from cache
-    playerDataCache[charId] = nil
-    activeCharacter[src] = nil
+    playerDataCache[cid] = nil
+    if activeCharacter[src] == cid then
+        activeCharacter[src] = nil
+        playerCidMap[src] = nil
+    end
 
-    -- Notify client
-    TriggerClientEvent("flakey_multichar:characterDeleted", src, slotId)
+    TriggerClientEvent("flakey_multichar:characterDeleted", src, cid)
 end)
 
 AddEventHandler("onResourceStop", function(resourceName)
     if resourceName == GetCurrentResourceName() then
-        for src, charId in pairs(activeCharacter) do
-            local data = playerDataCache[charId]
+        for src, cid in pairs(activeCharacter) do
+            local data = playerDataCache[cid]
             if not data then return end
 
             local pos = data.position or { x = -270.0, y = -957.0, z = 31.2, heading = 250.0 }
 
-            setKvp(charId, "health", data.health)
-            setKvp(charId, "hunger", data.hunger)
-            setKvp(charId, "thirst", data.thirst)
+            setKvp(cid, "health", data.health)
+            setKvp(cid, "hunger", data.hunger)
+            setKvp(cid, "thirst", data.thirst)
             activeCharacter[src] = nil
-            playerDataCache[charId] = nil
+            playerCidMap[src] = nil
+            playerDataCache[cid] = nil
 
             exports.oxmysql:update_async([[UPDATE flakey_players SET
                 cash = ?, bank = ?, position = ?, ped = ?,
                 name = ?, dob = ?, gender = ?, height = ?, job = ?, grade = ?
-                WHERE identifier = ?]], {
+                WHERE cid = ?]], {
                 data.cash, data.bank, json.encode(pos), json.encode(data.ped),
-                data.name, data.dob, data.gender, data.height, data.job, data.grade, charId
+                data.name, data.dob, data.gender, data.height, data.job, data.grade, cid
             })
         end
     end

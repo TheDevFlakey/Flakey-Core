@@ -49,8 +49,7 @@ Citizen.CreateThread(function()
 end)
 
 RegisterCommand("char", function(source, args)
-    local slot = tonumber(args[1])
+    local cid = tonumber(args[1])
     -- Load/create the character
-    TriggerServerEvent("flakeyCore:selectCharacter", slot)
-    
+    TriggerServerEvent("flakeyCore:selectCharacter", cid)
 end, false)

@@ -41,4 +41,8 @@ end
 -- Called by server when loading ped
 RegisterNetEvent("flakeyCore:loadPedData", function(data)
     if data then ApplyFullPedData(data) end
+    local playerPed = PlayerPedId()
+    SetEntityVisible(playerPed, true)
+    SetEntityInvincible(playerPed, false)
+    FreezeEntityPosition(playerPed, false)
 end)

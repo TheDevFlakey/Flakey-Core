@@ -39,26 +39,15 @@ local jobList = {
     }
 }
 
--- Helper: Find full ID from base Steam ID
-local function getFullIdentifier(baseId)
-    for fullId in pairs(playerDataCache) do
-        if fullId:find(baseId, 1, true) == 1 then
-            return fullId
-        end
-    end
-    return nil
-end
-
 -- Assign job and grade to player
 RegisterNetEvent("flakeyCore:setJob", function(jobName, grade)
     local src = source
-    local baseId = GetPlayerIdentifier(src, 0)
-    local fullId = getFullIdentifier(baseId)
-    local data = fullId and playerDataCache[fullId]
+    local cid = activeCharacter[src]
+    local data = cid and playerDataCache[cid]
 
     if data and jobList[jobName] and jobList[jobName].grades[grade] then
-        playerDataCache[fullId].job = jobName
-        playerDataCache[fullId].grade = grade
+        data.job = jobName
+        data.grade = grade
 
         local label = jobList[jobName].label .. " - " .. jobList[jobName].grades[grade].name
         TriggerClientEvent("flakeyCore:jobChanged", src, jobName, label)
@@ -68,35 +57,35 @@ end)
 -- Admin command to set a player's job and grade
 RegisterCommand("setjob", function(source, args)
     if #args < 3 then
-        print("Usage: /setjob [id] [job] [grade]")
+        print("Usage: /setjob [playerSrc] [job] [grade]")
         return
     end
 
-    local targetId = tonumber(args[1])
+    local targetSrc = tonumber(args[1])
     local jobName = args[2]
     local grade = tonumber(args[3])
 
-    if not targetId or not jobList[jobName] or not jobList[jobName].grades[grade] then
+    if not targetSrc or not jobList[jobName] or not jobList[jobName].grades[grade] then
         print("Invalid job or grade")
         return
     end
 
-    local baseId = GetPlayerIdentifier(targetId, 0)
-    local fullId = getFullIdentifier(baseId)
-    local data = fullId and playerDataCache[fullId]
+    local cid = activeCharacter[targetSrc]
+    local data = cid and playerDataCache[cid]
 
     if data then
-        playerDataCache[fullId].job = jobName
-        playerDataCache[fullId].grade = grade
+        data.job = jobName
+        data.grade = grade
+
         local label = jobList[jobName].label .. " - " .. jobList[jobName].grades[grade].name
-        TriggerClientEvent("flakeyCore:jobChanged", targetId, jobName, label)
-        print("Set job for player", targetId, "to", label)
+        TriggerClientEvent("flakeyCore:jobChanged", targetSrc, jobName, label)
+        print("Set job for player", targetSrc, "to", label)
     end
 end, true)
 
 -- Get current job info
-function GetPlayerJob(identifier)
-    local data = playerDataCache[identifier]
+function GetPlayerJob(cid)
+    local data = playerDataCache[cid]
     if data and data.job then
         local job = jobList[data.job]
         local grade = data.grade or 0
@@ -112,14 +101,13 @@ CreateThread(function()
         Wait(600000) -- 10 minutes
 
         for _, playerId in ipairs(GetPlayers()) do
-            local baseId = GetPlayerIdentifier(playerId, 0)
-            local fullId = getFullIdentifier(baseId)
-            local data = fullId and playerDataCache[fullId]
+            local cid = activeCharacter[tonumber(playerId)]
+            local data = cid and playerDataCache[cid]
 
             if data then
-                local _, _, _, gradeData = GetPlayerJob(fullId)
+                local _, _, _, gradeData = GetPlayerJob(cid)
                 if gradeData and gradeData.paycheck > 0 then
-                    playerDataCache[fullId].bank = data.bank + gradeData.paycheck
+                    data.bank = data.bank + gradeData.paycheck
                     TriggerClientEvent("flakeyCore:updateMoneyUI", playerId, data.cash, data.bank)
                     TriggerClientEvent("chat:addMessage", playerId, {
                         args = { "Paycheck", "You received $" .. gradeData.paycheck .. " as a " .. gradeData.name }
