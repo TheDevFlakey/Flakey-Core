@@ -48,8 +48,11 @@ Citizen.CreateThread(function()
     end
 end)
 
-RegisterCommand("char", function(source, args)
-    local cid = tonumber(args[1])
-    -- Load/create the character
-    TriggerServerEvent("flakeyCore:selectCharacter", cid)
+RegisterNetEvent("flakeyCore:spawnPlayer", function(position)
+    local ped = PlayerPedId()
+    SetEntityCoords(ped, position.x, position.y, position.z, false, false, false, false)
+end)
+
+RegisterCommand("logout", function(source, args, rawCommand)
+    TriggerServerEvent("flakeyCore:logout", GetEntityCoords(PlayerPedId()))
 end, false)

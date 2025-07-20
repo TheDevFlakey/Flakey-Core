@@ -204,6 +204,47 @@ RegisterNetEvent("flakeyCore:playerJoined", function()
     end
 end)
 
+RegisterServerEvent("flakeyCore:logout", function(pos)
+    local src = source
+    local cid = activeCharacter[src]
+    local data = cid and playerDataCache[cid]
+    if not data then return end
+
+    exports.oxmysql:update_async([[UPDATE flakey_players SET
+        cash = ?, bank = ?, position = ?, ped = ?,
+        name = ?, dob = ?, gender = ?, height = ?, job = ?, grade = ?
+        WHERE cid = ?]], {
+        data.cash, data.bank, json.encode(pos), json.encode(data.ped),
+        data.name, data.dob, data.gender, data.height, data.job, data.grade, cid
+    })
+
+    setKvp(cid, "health", data.health)
+    setKvp(cid, "hunger", data.hunger)
+    setKvp(cid, "thirst", data.thirst)
+
+    activeCharacter[src] = nil
+    playerCidMap[src] = nil
+    playerDataCache[cid] = nil
+
+        local fivemId = GetPlayerIdentifier(src, 0)
+
+    if not fivemId then
+        print("flakeyCore: No valid identifier found for player " .. src)
+        return
+    end
+
+    local result = exports.oxmysql:query_async(
+        'SELECT * FROM flakey_players WHERE fivem_id = ?', 
+        { fivemId }
+    )
+
+    if #result == 0 then
+        TriggerClientEvent("flakey_multichar:showCreateCharacter", src)
+    else
+        TriggerClientEvent("flakey_multichar:loadCharacters", src, result)
+    end
+end)
+
 RegisterNetEvent("flakeyCore:deleteCharacter", function(cid)
     local src = source
 
@@ -242,4 +283,15 @@ AddEventHandler("onResourceStop", function(resourceName)
             })
         end
     end
+end)
+
+RegisterServerEvent("flakeyCore:spawnLastLocation", function()
+    local src = source
+    local cid = activeCharacter[src]
+    local data = cid and playerDataCache[cid]
+    if not data then return end
+
+    local pos = data.position
+
+    TriggerClientEvent("flakeyCore:spawnPlayer", src, pos)
 end)
