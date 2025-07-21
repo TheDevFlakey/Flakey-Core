@@ -226,7 +226,7 @@ RegisterServerEvent("flakeyCore:logout", function(pos)
     playerCidMap[src] = nil
     playerDataCache[cid] = nil
 
-        local fivemId = GetPlayerIdentifier(src, 0)
+    local fivemId = GetPlayerIdentifier(src, 0)
 
     if not fivemId then
         print("flakeyCore: No valid identifier found for player " .. src)
